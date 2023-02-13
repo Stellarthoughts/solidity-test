@@ -1,5 +1,6 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers"
 import { expect } from "chai"
+import { formatEther } from "ethers/lib/utils"
 import { ethers } from "hardhat"
 
 describe("ERC20", function () {
@@ -13,11 +14,14 @@ describe("ERC20", function () {
 		const price = ethers.utils.parseEther("0.1")
 		const testERC20 = await TestERC20.deploy(name, symbol, price)
 
+		const accounts = [otherAccount1, otherAccount2, otherAccount3]
+
 		return {
 			owner,
 			otherAccount1,
 			otherAccount2,
 			otherAccount3,
+			accounts,
 			name,
 			symbol,
 			price,
@@ -36,16 +40,17 @@ describe("ERC20", function () {
 		const testERC20 = await TestERC20.deploy(name, symbol, price)
 
 		const amountMint = 10
-
-		await testERC20.connect(otherAccount1).mint(amountMint, { value: price.mul(amountMint) })
-		await testERC20.connect(otherAccount2).mint(amountMint, { value: price.mul(amountMint) })
-		await testERC20.connect(otherAccount3).mint(amountMint, { value: price.mul(amountMint) })
+		const accounts = [otherAccount1, otherAccount2, otherAccount3]
+		for (let i = 0; i < accounts.length; i++) {
+			await testERC20.connect(accounts[i]).mint(amountMint, { value: price.mul(amountMint) })
+		}
 
 		return {
 			owner,
 			otherAccount1,
 			otherAccount2,
 			otherAccount3,
+			accounts,
 			name,
 			symbol,
 			price,
@@ -68,24 +73,28 @@ describe("ERC20", function () {
 		const testERC20 = await TestERC20.deploy(name, symbol, price)
 
 		const amountMint = 10
-
-		await testERC20.connect(otherAccount1).mint(amountMint, { value: price.mul(amountMint) })
-		await testERC20.connect(otherAccount2).mint(amountMint, { value: price.mul(amountMint) })
-		await testERC20.connect(otherAccount3).mint(amountMint, { value: price.mul(amountMint) })
+		const accounts = [otherAccount1, otherAccount2, otherAccount3]
+		for (let i = 0; i < accounts.length; i++) {
+			await testERC20.connect(accounts[i]).mint(amountMint, { value: price.mul(amountMint) })
+		}
 
 		const amountApprove1 = 4
 		const amountApprove2 = 6
 		const amountApprove3 = 9
+		const approvals = [amountApprove1, amountApprove2, amountApprove3]
 
-		await testERC20.connect(otherAccount1).approve(otherAccount2.address, amountApprove1)
-		await testERC20.connect(otherAccount2).approve(otherAccount3.address, amountApprove2)
-		await testERC20.connect(otherAccount3).approve(otherAccount1.address, amountApprove3)
+		for (let i = 0; i < accounts.length; i++) {
+			const accontSpender = accounts[(i + 1) % accounts.length]
+			await testERC20.connect(accounts[i]).approve(accontSpender.address, approvals[i])
+		}
 
 		return {
 			owner,
 			otherAccount1,
 			otherAccount2,
 			otherAccount3,
+			accounts,
+			approvals,
 			name,
 			symbol,
 			price,
@@ -122,63 +131,68 @@ describe("ERC20", function () {
 	describe("Mint", function () {
 		it("Should increase balance of caller on given amount", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
-			const amount = 10
+			const amountMint = 10
 			await expect(
-				testERC20.connect(otherAccount1).mint(amount, { value: price.mul(amount) })
-			).to.changeTokenBalance(testERC20, otherAccount1, amount)
+				testERC20.connect(otherAccount1).mint(amountMint, { value: price.mul(amountMint) })
+			).to.changeTokenBalance(testERC20, otherAccount1, amountMint)
 		})
 		it("Should increase total supply", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
-			const amount = 10
-			await testERC20.connect(otherAccount1).mint(amount, { value: price.mul(amount) })
-			expect(await testERC20.totalSupply()).to.equal(amount)
+			const amountMint = 10
+			await testERC20
+				.connect(otherAccount1)
+				.mint(amountMint, { value: price.mul(amountMint) })
+			expect(await testERC20.totalSupply()).to.equal(amountMint)
 		})
 		it("Should emit transfer event with right args", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
-			const amount = 10
+			const amountMint = 10
 			await expect(
-				testERC20.connect(otherAccount1).mint(amount, { value: price.mul(amount) })
+				testERC20.connect(otherAccount1).mint(amountMint, { value: price.mul(amountMint) })
 			)
 				.to.emit(testERC20, "Transfer")
-				.withArgs(ethers.constants.AddressZero, otherAccount1.address, amount)
+				.withArgs(ethers.constants.AddressZero, otherAccount1.address, amountMint)
 		})
 		it("Should increase contract ethers balance", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
-			const amount = 10
+			const amountMint = 10
 			await expect(
-				testERC20.connect(otherAccount1).mint(amount, { value: price.mul(amount) })
-			).to.changeEtherBalance(testERC20, price.mul(amount))
+				testERC20.connect(otherAccount1).mint(amountMint, { value: price.mul(amountMint) })
+			).to.changeEtherBalance(testERC20, price.mul(amountMint))
 		})
 		it("Should decrease caller ethers balance", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
-			const amount = 10
+			const amountMint = 10
 			await expect(
-				testERC20.connect(otherAccount1).mint(amount, { value: price.mul(amount) })
-			).to.changeEtherBalance(otherAccount1, price.mul(amount).mul(-1))
+				testERC20.connect(otherAccount1).mint(amountMint, { value: price.mul(amountMint) })
+			).to.changeEtherBalance(otherAccount1, price.mul(amountMint).mul(-1))
 		})
 		it("Should revert if message value is less than price * token amount", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
-			const amount = 10
+			const amountMint = 10
 			await expect(
-				testERC20.connect(otherAccount1).mint(amount, { value: price.mul(amount).sub(1) })
+				testERC20
+					.connect(otherAccount1)
+					.mint(amountMint, { value: price.mul(amountMint).sub(1) })
 			).to.be.revertedWith("ERC20: Not enough ethers to mint")
 		})
 		it("Make tests for several mints for different addresses in one unit test", async function () {
-			const { testERC20, otherAccount1, otherAccount2, otherAccount3, price } =
-				await loadFixture(deployContractFixture)
-			const amount1 = 10
-			const amount2 = 20
-			const amount3 = 30
+			const { testERC20, accounts, price } = await loadFixture(deployContractFixture)
+			const amountsMint = [10, 20, 30]
 			const beforeSupply = await testERC20.totalSupply()
-			await testERC20.connect(otherAccount1).mint(amount1, { value: price.mul(amount1) })
-			await testERC20.connect(otherAccount2).mint(amount2, { value: price.mul(amount2) })
-			await testERC20.connect(otherAccount3).mint(amount3, { value: price.mul(amount3) })
-			expect(await testERC20.totalSupply()).to.equal(
-				beforeSupply.add(amount1 + amount2 + amount3)
-			)
-			expect(await testERC20.balanceOf(otherAccount1.address)).to.equal(amount1)
-			expect(await testERC20.balanceOf(otherAccount2.address)).to.equal(amount2)
-			expect(await testERC20.balanceOf(otherAccount3.address)).to.equal(amount3)
+
+			for (let i = 0; i < accounts.length; i++) {
+				await testERC20
+					.connect(accounts[i])
+					.mint(amountsMint[i], { value: price.mul(amountsMint[i]) })
+			}
+
+			const totalMint = amountsMint.reduce((sum, current) => sum + current, 0)
+			expect(await testERC20.totalSupply()).to.equal(beforeSupply.add(totalMint))
+
+			for (let i = 0; i < accounts.length; i++) {
+				expect(await testERC20.balanceOf(accounts[i].address)).to.equal(amountsMint[i])
+			}
 		})
 	})
 	describe("Transfer", function () {
@@ -241,11 +255,14 @@ describe("ERC20", function () {
 			).to.be.revertedWith("ERC20: transfer amount exceeds balance")
 		})
 		it("Make tests for several transfers for different addresses in one unit test", async function () {
-			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountMint } =
-				await loadFixture(deployContractTokensMintedFixture)
+			const { testERC20, accounts, amountMint } = await loadFixture(
+				deployContractTokensMintedFixture
+			)
 			const amountTransfer1 = 5
 			const amountTransfer2 = 3
 			const amountTransfer3 = 9
+
+			const amountsTransfer = [5, 3, 9]
 
 			/*
 				account1 -> amountTransfer1 -> account2
@@ -255,18 +272,26 @@ describe("ERC20", function () {
 				account2: amountMint + amountTransfer1 - amountTransfer2
 				account3: amountMint + amountTransfer2 - amountTransfer3
 			*/
-			const amountAfter1 = amountMint - amountTransfer1 + amountTransfer3
-			const amountAfter2 = amountMint + amountTransfer1 - amountTransfer2
-			const amountAfter3 = amountMint + amountTransfer2 - amountTransfer3
+
+			const amountsAfter = [
+				amountMint - amountTransfer1 + amountTransfer3,
+				amountMint + amountTransfer1 - amountTransfer2,
+				amountMint + amountTransfer2 - amountTransfer3,
+			]
 
 			const supplyBefore = await testERC20.totalSupply()
-			await testERC20.connect(otherAccount1).transfer(otherAccount2.address, amountTransfer1)
-			await testERC20.connect(otherAccount2).transfer(otherAccount3.address, amountTransfer2)
-			await testERC20.connect(otherAccount3).transfer(otherAccount1.address, amountTransfer3)
+
+			for (let i = 0; i < accounts.length; i++) {
+				const transferTo = accounts[(i + 1) % accounts.length]
+				await testERC20
+					.connect(accounts[i])
+					.transfer(transferTo.address, amountsTransfer[i])
+			}
 			expect(await testERC20.totalSupply()).to.equal(supplyBefore)
-			expect(await testERC20.balanceOf(otherAccount1.address)).to.equal(amountAfter1)
-			expect(await testERC20.balanceOf(otherAccount2.address)).to.equal(amountAfter2)
-			expect(await testERC20.balanceOf(otherAccount3.address)).to.equal(amountAfter3)
+
+			for (let i = 0; i < accounts.length; i++) {
+				expect(await testERC20.balanceOf(accounts[i].address)).to.equal(amountsAfter[i])
+			}
 		})
 	})
 	describe("Burn", function () {
@@ -309,32 +334,19 @@ describe("ERC20", function () {
 			)
 		})
 		it("Make tests for several burns for different addresses in one unit test", async function () {
-			const { testERC20, otherAccount1, otherAccount2, otherAccount3, price } =
-				await loadFixture(deployContractTokensMintedFixture)
-			const amountBurn1 = 4
-			const amountBurn2 = 6
-			const amountBurn3 = 9
+			const { testERC20, accounts } = await loadFixture(deployContractTokensMintedFixture)
+			const amountsBurn = [4, 6, 9]
 
 			const supplyBefore = await testERC20.totalSupply()
 
-			await expect(testERC20.connect(otherAccount1).burn(amountBurn1)).to.changeTokenBalance(
-				testERC20,
-				otherAccount1,
-				-amountBurn1
-			)
-			await expect(testERC20.connect(otherAccount2).burn(amountBurn2)).to.changeTokenBalance(
-				testERC20,
-				otherAccount2,
-				-amountBurn2
-			)
-			await expect(testERC20.connect(otherAccount3).burn(amountBurn3)).to.changeTokenBalance(
-				testERC20,
-				otherAccount3,
-				-amountBurn3
-			)
-			expect(await testERC20.totalSupply()).to.equal(
-				supplyBefore.sub(amountBurn1 + amountBurn2 + amountBurn3)
-			)
+			for (let i = 0; i < accounts.length; i++) {
+				await expect(
+					testERC20.connect(accounts[i]).burn(amountsBurn[i])
+				).to.changeTokenBalance(testERC20, accounts[i], -amountsBurn[i])
+			}
+
+			const totalBurn = amountsBurn.reduce((sum, current) => sum + current, 0)
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore.sub(totalBurn))
 		})
 	})
 	describe("Approve", function () {
@@ -371,29 +383,26 @@ describe("ERC20", function () {
 			).to.be.revertedWith("ERC20: approve to the zero address")
 		})
 		it("Make tests for several approvals for different addresses in one unit test", async function () {
-			const { testERC20, otherAccount1, otherAccount2, otherAccount3 } = await loadFixture(
-				deployContractTokensMintedFixture
-			)
-			const amountApprove1 = 4
-			const amountApprove2 = 3
-			const amountApprove3 = 9
+			const { testERC20, accounts } = await loadFixture(deployContractTokensMintedFixture)
+			const amountsApprove = [4, 3, 9]
 			/*
 				otherAccount1 -> amountApprove1 -> otherAccount2
 				otherAccount2 -> amountApprove2 -> otherAccount3
 				otherAccount3 -> amountApprove3 -> otherAccount1
 			*/
-			await testERC20.connect(otherAccount1).approve(otherAccount2.address, amountApprove1)
-			await testERC20.connect(otherAccount2).approve(otherAccount3.address, amountApprove2)
-			await testERC20.connect(otherAccount3).approve(otherAccount1.address, amountApprove3)
-			expect(
-				await testERC20.allowance(otherAccount1.address, otherAccount2.address)
-			).to.equal(amountApprove1)
-			expect(
-				await testERC20.allowance(otherAccount2.address, otherAccount3.address)
-			).to.equal(amountApprove2)
-			expect(
-				await testERC20.allowance(otherAccount3.address, otherAccount1.address)
-			).to.equal(amountApprove3)
+			for (let i = 0; i < accounts.length; i++) {
+				const toApprove = accounts[(i + 1) % accounts.length]
+				await testERC20.connect(accounts[i]).approve(toApprove.address, amountsApprove[i])
+			}
+
+			for (let i = 0; i < accounts.length; i++) {
+				expect(
+					await testERC20.allowance(
+						accounts[i].address,
+						accounts[(i + 1) % accounts.length].address
+					)
+				).to.equal(amountsApprove[i])
+			}
 		})
 	})
 	describe("Increase allowance", function () {
@@ -438,48 +447,90 @@ describe("ERC20", function () {
 			).to.be.revertedWith("ERC20: approve to the zero address")
 		})
 		it("Make tests for several increasings for different addresses in one unit test", async function () {
-			const {
-				testERC20,
-				otherAccount1,
-				otherAccount2,
-				otherAccount3,
-				amountApprove1,
-				amountApprove2,
-				amountApprove3,
-			} = await loadFixture(deployContractTokensApprovedFixture)
+			const { testERC20, accounts, approvals } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
 
-			const amountIncrease1 = 3
-			const amountIncrease2 = 5
-			const amountIncrease3 = 6
+			const amountsIncrease = [3, 5, 6]
 
-			await testERC20
-				.connect(otherAccount1)
-				.increaseAllowance(otherAccount2.address, amountIncrease1)
-			expect(
-				await testERC20.allowance(otherAccount1.address, otherAccount2.address)
-			).to.equal(amountApprove1 + amountIncrease1)
-
-			await testERC20
-				.connect(otherAccount2)
-				.increaseAllowance(otherAccount3.address, amountIncrease2)
-			expect(
-				await testERC20.allowance(otherAccount2.address, otherAccount3.address)
-			).to.equal(amountApprove2 + amountIncrease2)
-
-			await testERC20
-				.connect(otherAccount3)
-				.increaseAllowance(otherAccount1.address, amountIncrease3)
-			expect(
-				await testERC20.allowance(otherAccount3.address, otherAccount1.address)
-			).to.equal(amountApprove3 + amountIncrease3)
+			for (let i = 0; i < accounts.length; i++) {
+				const approveTo = accounts[(i + 1) % accounts.length]
+				await testERC20
+					.connect(accounts[i])
+					.increaseAllowance(approveTo.address, amountsIncrease[i])
+				expect(await testERC20.allowance(accounts[i].address, approveTo.address)).to.equal(
+					approvals[i] + amountsIncrease[i]
+				)
+			}
 		})
 	})
 	describe("Decrease allowance", function () {
-		it("Should update _allowances mapping by decreasing on amount", async function () {})
-		it("Should emit approval event with right args", async function () {})
-		it("Should revert if approval given for zero address", async function () {})
-		it("Should revert if decreased allowance is below zero", async function () {})
-		it("Make tests for several decreasings for different addresses in one unit test", async function () {})
+		it("Should update _allowances mapping by decreasing on amount", async function () {
+			const { testERC20, otherAccount1, otherAccount2, amountApprove1 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+			const amountDecrease = amountApprove1 - 1
+			await testERC20
+				.connect(otherAccount1)
+				.decreaseAllowance(otherAccount2.address, amountDecrease)
+			expect(
+				await testERC20.allowance(otherAccount1.address, otherAccount2.address)
+			).to.equal(amountApprove1 - amountDecrease)
+		})
+		it("Should emit approval event with right args", async function () {
+			const { testERC20, otherAccount1, otherAccount2, amountApprove1 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+			const amountDecrease = amountApprove1 - 1
+			await expect(
+				testERC20
+					.connect(otherAccount1)
+					.decreaseAllowance(otherAccount2.address, amountDecrease)
+			)
+				.to.emit(testERC20, "Approval")
+				.withArgs(
+					otherAccount1.address,
+					otherAccount2.address,
+					amountApprove1 - amountDecrease
+				)
+		})
+		it("Should revert if approval given for zero address", async function () {
+			const { testERC20, otherAccount1 } = await loadFixture(
+				deployContractTokensMintedFixture
+			)
+			const amountDecrease = 0
+			await expect(
+				testERC20
+					.connect(otherAccount1)
+					.decreaseAllowance(ethers.constants.AddressZero, amountDecrease)
+			).to.be.revertedWith("ERC20: approve to the zero address")
+		})
+		it("Should revert if decreased allowance is below zero", async function () {
+			const { testERC20, otherAccount1, otherAccount2, amountApprove1 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+			const amountDecrease = amountApprove1 + 1
+			await expect(
+				testERC20
+					.connect(otherAccount1)
+					.decreaseAllowance(otherAccount2.address, amountDecrease)
+			).to.be.revertedWith("ERC20: decreased allowance below zero")
+		})
+		it("Make tests for several decreasings for different addresses in one unit test", async function () {
+			const { testERC20, accounts, approvals } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+
+			for (let i = 0; i < accounts.length; i++) {
+				const approveTo = accounts[(i + 1) % accounts.length]
+				await testERC20
+					.connect(accounts[i])
+					.decreaseAllowance(approveTo.address, approvals[i] - 1)
+				expect(await testERC20.allowance(accounts[i].address, approveTo.address)).to.equal(
+					1
+				)
+			}
+		})
 	})
 	describe("Transfer from", function () {
 		it("Should update _allowances mapping by decreasing on amount", async function () {})
