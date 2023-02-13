@@ -95,10 +95,13 @@ describe("ERC20", function () {
 			const amount1 = 10
 			const amount2 = 20
 			const amount3 = 30
+			const beforeSupply = await testERC20.totalSupply()
 			await testERC20.connect(otherAccount1).mint(amount1, { value: price.mul(amount1) })
 			await testERC20.connect(otherAccount2).mint(amount2, { value: price.mul(amount2) })
 			await testERC20.connect(otherAccount3).mint(amount3, { value: price.mul(amount3) })
-			expect(await testERC20.totalSupply()).to.equal(amount1 + amount2 + amount3)
+			expect(await testERC20.totalSupply()).to.equal(
+				beforeSupply.add(amount1 + amount2 + amount3)
+			)
 			expect(await testERC20.balanceOf(otherAccount1.address)).to.equal(amount1)
 			expect(await testERC20.balanceOf(otherAccount2.address)).to.equal(amount2)
 			expect(await testERC20.balanceOf(otherAccount3.address)).to.equal(amount3)
@@ -140,8 +143,9 @@ describe("ERC20", function () {
 			await testERC20.connect(otherAccount1).mint(amountMint, {
 				value: price.mul(amountMint),
 			})
+			const beforeSupply = await testERC20.totalSupply()
 			await testERC20.connect(otherAccount1).transfer(otherAccount2.address, amountTransfer)
-			expect(await testERC20.totalSupply()).to.equal(amountMint)
+			expect(await testERC20.totalSupply()).to.equal(beforeSupply)
 		})
 		it("Should emit transfer event with right args", async function () {
 			const { testERC20, otherAccount1, otherAccount2, price } = await loadFixture(
@@ -213,21 +217,103 @@ describe("ERC20", function () {
 			await testERC20.connect(otherAccount3).mint(amountMint, {
 				value: price.mul(amountMint),
 			})
-			
+
+			const supplyBefore = await testERC20.totalSupply()
 			await testERC20.connect(otherAccount1).transfer(otherAccount2.address, amountTransfer1)
 			await testERC20.connect(otherAccount2).transfer(otherAccount3.address, amountTransfer2)
 			await testERC20.connect(otherAccount3).transfer(otherAccount1.address, amountTransfer3)
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore)
 			expect(await testERC20.balanceOf(otherAccount1.address)).to.equal(amountAfter1)
 			expect(await testERC20.balanceOf(otherAccount2.address)).to.equal(amountAfter2)
 			expect(await testERC20.balanceOf(otherAccount3.address)).to.equal(amountAfter3)
 		})
 	})
 	describe("Burn", function () {
-		it("Should decrease balance of caller", async function () {})
-		it("Should decrease total supply", async function () {})
-		it("Should emit transfer event with right args", async function () {})
-		it("Should revert if caller balance is less than amount to burn", async function () {})
-		it("Make tests for several burns for different addresses in one unit test", async function () {})
+		it("Should decrease balance of caller", async function () {
+			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
+			const amountMint = 10
+			const amountBurn = 4
+			await testERC20.connect(otherAccount1).mint(amountMint, {
+				value: price.mul(amountMint),
+			})
+			await expect(testERC20.connect(otherAccount1).burn(amountBurn)).to.changeTokenBalance(
+				testERC20,
+				otherAccount1,
+				-amountBurn
+			)
+		})
+		it("Should decrease total supply", async function () {
+			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
+			const amountMint = 10
+			const amountBurn = 4
+			await testERC20.connect(otherAccount1).mint(amountMint, {
+				value: price.mul(amountMint),
+			})
+			const supplyBefore = await testERC20.totalSupply()
+			await testERC20.connect(otherAccount1).burn(amountBurn)
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore.sub(amountBurn))
+		})
+		it("Should emit transfer event with right args", async function () {
+			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
+			const amountMint = 10
+			const amountBurn = 4
+			await testERC20.connect(otherAccount1).mint(amountMint, {
+				value: price.mul(amountMint),
+			})
+			await expect(testERC20.connect(otherAccount1).burn(amountBurn))
+				.to.emit(testERC20, "Transfer")
+				.withArgs(otherAccount1.address, ethers.constants.AddressZero, amountBurn)
+		})
+		it("Should revert if caller balance is less than amount to burn", async function () {
+			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
+			const amountMint = 10
+			const amountBurn = 12
+			await testERC20.connect(otherAccount1).mint(amountMint, {
+				value: price.mul(amountMint),
+			})
+			await expect(testERC20.connect(otherAccount1).burn(amountBurn)).to.be.revertedWith(
+				"ERC20: burn amount exceeds balance"
+			)
+		})
+		it("Make tests for several burns for different addresses in one unit test", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, price } =
+				await loadFixture(deployContractFixture)
+			const amountMint = 10
+			const amountBurn1 = 4
+			const amountBurn2 = 6
+			const amountBurn3 = 9
+
+			await testERC20.connect(otherAccount1).mint(amountMint, {
+				value: price.mul(amountMint),
+			})
+			await testERC20.connect(otherAccount2).mint(amountMint, {
+				value: price.mul(amountMint),
+			})
+			await testERC20.connect(otherAccount3).mint(amountMint, {
+				value: price.mul(amountMint),
+			})
+
+			const supplyBefore = await testERC20.totalSupply()
+
+			await expect(testERC20.connect(otherAccount1).burn(amountBurn1)).to.changeTokenBalance(
+				testERC20,
+				otherAccount1,
+				-amountBurn1
+			)
+			await expect(testERC20.connect(otherAccount2).burn(amountBurn2)).to.changeTokenBalance(
+				testERC20,
+				otherAccount2,
+				-amountBurn2
+			)
+			await expect(testERC20.connect(otherAccount3).burn(amountBurn3)).to.changeTokenBalance(
+				testERC20,
+				otherAccount3,
+				-amountBurn3
+			)
+			expect(await testERC20.totalSupply()).to.equal(
+				supplyBefore.sub(amountBurn1 + amountBurn2 + amountBurn3)
+			)
+		})
 	})
 	describe("Approve", function () {
 		it("Should update _allowances mapping by setting amount", async function () {})
