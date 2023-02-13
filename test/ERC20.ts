@@ -397,10 +397,82 @@ describe("ERC20", function () {
 		})
 	})
 	describe("Increase allowance", function () {
-		it("Should update _allowances mapping by increasing on amount", async function () {})
-		it("Should emit approval event with right args", async function () {})
-		it("Should revert if approval given for zero address", async function () {})
-		it("Make tests for several increasings for different addresses in one unit test", async function () {})
+		it("Should update _allowances mapping by increasing on amount", async function () {
+			const { testERC20, otherAccount1, otherAccount2, amountApprove1 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+			const amountIncrease = 5
+			await testERC20
+				.connect(otherAccount1)
+				.increaseAllowance(otherAccount2.address, amountIncrease)
+			expect(
+				await testERC20.allowance(otherAccount1.address, otherAccount2.address)
+			).to.equal(amountApprove1 + amountIncrease)
+		})
+		it("Should emit approval event with right args", async function () {
+			const { testERC20, otherAccount1, otherAccount2, amountApprove1 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+			const amountIncrease = 5
+			await expect(
+				testERC20
+					.connect(otherAccount1)
+					.increaseAllowance(otherAccount2.address, amountIncrease)
+			)
+				.to.emit(testERC20, "Approval")
+				.withArgs(
+					otherAccount1.address,
+					otherAccount2.address,
+					amountApprove1 + amountIncrease
+				)
+		})
+		it("Should revert if approval given for zero address", async function () {
+			const { testERC20, otherAccount1 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+			const amountIncrease = 5
+			await expect(
+				testERC20
+					.connect(otherAccount1)
+					.increaseAllowance(ethers.constants.AddressZero, amountIncrease)
+			).to.be.revertedWith("ERC20: approve to the zero address")
+		})
+		it("Make tests for several increasings for different addresses in one unit test", async function () {
+			const {
+				testERC20,
+				otherAccount1,
+				otherAccount2,
+				otherAccount3,
+				amountApprove1,
+				amountApprove2,
+				amountApprove3,
+			} = await loadFixture(deployContractTokensApprovedFixture)
+
+			const amountIncrease1 = 3
+			const amountIncrease2 = 5
+			const amountIncrease3 = 6
+
+			await testERC20
+				.connect(otherAccount1)
+				.increaseAllowance(otherAccount2.address, amountIncrease1)
+			expect(
+				await testERC20.allowance(otherAccount1.address, otherAccount2.address)
+			).to.equal(amountApprove1 + amountIncrease1)
+
+			await testERC20
+				.connect(otherAccount2)
+				.increaseAllowance(otherAccount3.address, amountIncrease2)
+			expect(
+				await testERC20.allowance(otherAccount2.address, otherAccount3.address)
+			).to.equal(amountApprove2 + amountIncrease2)
+
+			await testERC20
+				.connect(otherAccount3)
+				.increaseAllowance(otherAccount1.address, amountIncrease3)
+			expect(
+				await testERC20.allowance(otherAccount3.address, otherAccount1.address)
+			).to.equal(amountApprove3 + amountIncrease3)
+		})
 	})
 	describe("Decrease allowance", function () {
 		it("Should update _allowances mapping by decreasing on amount", async function () {})
