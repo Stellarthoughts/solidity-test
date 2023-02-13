@@ -64,7 +64,8 @@ describe("ERC20", function () {
 	// Account 2 approved Account 3 amountApprove2 tokens
 	// Account 3 approved Account 1 amountApprove3 tokens
 	async function deployContractTokensApprovedFixture() {
-		const [owner, otherAccount1, otherAccount2, otherAccount3] = await ethers.getSigners()
+		const [owner, otherAccount1, otherAccount2, otherAccount3, otherAccount4] =
+			await ethers.getSigners()
 		const TestERC20 = await ethers.getContractFactory("ERC20")
 
 		const name = "Test"
@@ -179,7 +180,7 @@ describe("ERC20", function () {
 		it("Make tests for several mints for different addresses in one unit test", async function () {
 			const { testERC20, accounts, price } = await loadFixture(deployContractFixture)
 			const amountsMint = [10, 20, 30]
-			const beforeSupply = await testERC20.totalSupply()
+			const supplyBefore = await testERC20.totalSupply()
 
 			for (let i = 0; i < accounts.length; i++) {
 				await testERC20
@@ -188,7 +189,7 @@ describe("ERC20", function () {
 			}
 
 			const totalMint = amountsMint.reduce((sum, current) => sum + current, 0)
-			expect(await testERC20.totalSupply()).to.equal(beforeSupply.add(totalMint))
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore.add(totalMint))
 
 			for (let i = 0; i < accounts.length; i++) {
 				expect(await testERC20.balanceOf(accounts[i].address)).to.equal(amountsMint[i])
@@ -219,9 +220,9 @@ describe("ERC20", function () {
 				deployContractTokensMintedFixture
 			)
 			const amountTransfer = amountMint - 1
-			const beforeSupply = await testERC20.totalSupply()
+			const supplyBefore = await testERC20.totalSupply()
 			await testERC20.connect(otherAccount1).transfer(otherAccount2.address, amountTransfer)
-			expect(await testERC20.totalSupply()).to.equal(beforeSupply)
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore)
 		})
 		it("Should emit transfer event with right args", async function () {
 			const { testERC20, otherAccount1, otherAccount2, amountMint } = await loadFixture(
@@ -533,16 +534,113 @@ describe("ERC20", function () {
 		})
 	})
 	describe("Transfer from", function () {
-		it("Should update _allowances mapping by decreasing on amount", async function () {})
-		it("Should increase balance of to address", async function () {})
-		it("Should decrease balance of from address", async function () {})
-		it("Should not change total supply", async function () {})
-		it("Should emit transfer event", async function () {})
-		it("Should revert if to is a zero address", async function () {})
-		it("Should revert if from is a zero address", async function () {})
-		it("Should revert if allowance is not enough", async function () {})
-		it("Should revert if allowance is 0", async function () {})
-		it("Should revert if not enough balance on from address", async function () {})
+		it("Should update _allowances mapping by decreasing on amount", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
+				await loadFixture(deployContractTokensApprovedFixture)
+
+			await testERC20
+				.connect(otherAccount2)
+				.transferFrom(otherAccount1.address, otherAccount3.address, amountApprove1)
+			expect(
+				await testERC20.allowance(otherAccount1.address, otherAccount2.address)
+			).to.equal(0)
+		})
+		it("Should increase balance of to address", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
+				await loadFixture(deployContractTokensApprovedFixture)
+
+			await expect(
+				testERC20
+					.connect(otherAccount2)
+					.transferFrom(otherAccount1.address, otherAccount3.address, amountApprove1)
+			).to.changeTokenBalance(testERC20, otherAccount3.address, amountApprove1)
+		})
+		it("Should decrease balance of from address", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
+				await loadFixture(deployContractTokensApprovedFixture)
+
+			await expect(
+				testERC20
+					.connect(otherAccount2)
+					.transferFrom(otherAccount1.address, otherAccount3.address, amountApprove1)
+			).to.changeTokenBalance(testERC20, otherAccount1.address, -amountApprove1)
+		})
+		it("Should not change total supply", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
+				await loadFixture(deployContractTokensApprovedFixture)
+
+			const supplyBefore = await testERC20.totalSupply()
+			await testERC20
+				.connect(otherAccount2)
+				.transferFrom(otherAccount1.address, otherAccount3.address, amountApprove1)
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore)
+		})
+		it("Should emit transfer event", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
+				await loadFixture(deployContractTokensApprovedFixture)
+
+			await expect(
+				testERC20
+					.connect(otherAccount2)
+					.transferFrom(otherAccount1.address, otherAccount3.address, amountApprove1)
+			).to.emit(testERC20, "Transfer")
+		})
+		it("Should revert if to is a zero address", async function () {
+			const { testERC20, otherAccount1, otherAccount2, amountApprove1 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+
+			await expect(
+				testERC20
+					.connect(otherAccount2)
+					.transferFrom(
+						otherAccount1.address,
+						ethers.constants.AddressZero,
+						amountApprove1
+					)
+			).to.be.revertedWith("ERC20: transfer to the zero address")
+		})
+		it("Should revert if from is a zero address", async function () {
+			const { testERC20, otherAccount2, otherAccount3 } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+
+			await expect(
+				testERC20
+					.connect(otherAccount2)
+					.transferFrom(ethers.constants.AddressZero, otherAccount3.address, 0)
+			).to.be.revertedWith("ERC20: transfer from the zero address")
+		})
+		it("Should revert if allowance is not enough", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
+				await loadFixture(deployContractTokensApprovedFixture)
+
+			await expect(
+				testERC20
+					.connect(otherAccount2)
+					.transferFrom(otherAccount1.address, otherAccount3.address, amountApprove1 + 1)
+			).to.be.revertedWith("ERC20: insufficient allowance")
+		})
+		it("Should revert if allowance is 0", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
+				await loadFixture(deployContractTokensApprovedFixture)
+
+			await expect(
+				testERC20
+					.connect(otherAccount3)
+					.transferFrom(otherAccount1.address, otherAccount2.address, amountApprove1)
+			).to.be.revertedWith("ERC20: allowance is zero")
+		})
+		it("Should revert if not enough balance on from address", async function () {
+			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountMint } =
+				await loadFixture(deployContractTokensApprovedFixture)
+			await testERC20.connect(otherAccount1).approve(otherAccount2.address, amountMint + 1)
+			await expect(
+				testERC20
+					.connect(otherAccount2)
+					.transferFrom(otherAccount1.address, otherAccount3.address, amountMint + 1)
+			).to.be.revertedWith("ERC20: transfer amount exceeds balance")
+		})
 		it("Make tests for several transfers for different addresses in one unit test", async function () {})
 	})
 })
