@@ -111,6 +111,7 @@ contract ERC20 {
 	 * - the caller must have a balance of at least `amount`.
 	 */
 	function mint(uint256 amount) external payable {
+		require(msg.value >= amount * _price, "ERC20: Not enough ethers to mint");
 		_mint(msg.sender, amount);
 	}
 
@@ -137,7 +138,7 @@ contract ERC20 {
 	 * - the caller must have a balance of at least `amount`.
 	 */
 	function transfer(address to, uint256 amount) public virtual returns (bool) {
-		_transfer(msg.sender, msg.sender, amount);
+		_transfer(msg.sender, to, amount);
 		return true;
 	}
 
@@ -145,7 +146,7 @@ contract ERC20 {
 	 * Returns allowance amount given from `owner` to `spender`
 	 */
 	function allowance(address owner, address spender) public view virtual returns (uint256) {
-		return _allowances[spender][owner];
+		return _allowances[owner][spender];
 	}
 
 	/**
@@ -198,7 +199,8 @@ contract ERC20 {
 	 */
 	function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
 		address owner = msg.sender;
-		_approve(owner, spender, addedValue);
+		uint256 currentAllowance = allowance(owner, spender);
+		_approve(owner, spender, currentAllowance + addedValue);
 		return true;
 	}
 
@@ -247,7 +249,7 @@ contract ERC20 {
 		uint256 fromBalance = _balances[from];
 		require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
 		unchecked {
-			_balances[to] = fromBalance - amount;
+			_balances[from] = fromBalance - amount;
 			// Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
 			// decrementing then incrementing.
 			_balances[to] += amount;
@@ -272,7 +274,7 @@ contract ERC20 {
 
 		_beforeTokenTransfer(address(0), account, amount);
 
-		_totalSupply = amount;
+		_totalSupply += amount;
 		unchecked {
 			// Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
 			_balances[account] += amount;
@@ -299,7 +301,7 @@ contract ERC20 {
 		_beforeTokenTransfer(account, address(0), amount);
 
 		uint256 accountBalance = _balances[account];
-		require(accountBalance <= amount, "ERC20: burn amount exceeds balance");
+		require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
 		unchecked {
 			_balances[account] = accountBalance - amount;
 			// Overflow not possible: amount <= accountBalance <= totalSupply.
@@ -341,8 +343,10 @@ contract ERC20 {
 	 * Might emit an {Approval} event.
 	 */
 	function _spendAllowance(address owner, address spender, uint256 amount) internal virtual {
+		require(owner != address(0), "ERC20: spend from the zero address");
 		uint256 currentAllowance = allowance(owner, spender);
 		if (currentAllowance != type(uint256).max) {
+			require(currentAllowance != 0, "ERC20: allowance is zero");
 			require(currentAllowance >= amount, "ERC20: insufficient allowance");
 			unchecked {
 				_approve(owner, spender, currentAllowance - amount);
