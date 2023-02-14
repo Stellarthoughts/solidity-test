@@ -1,6 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers"
 import { expect } from "chai"
-import { formatEther } from "ethers/lib/utils"
 import { ethers } from "hardhat"
 
 describe("ERC20", function () {
@@ -140,10 +139,14 @@ describe("ERC20", function () {
 		it("Should increase total supply", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
 			const amountMint = 10
-			await testERC20
-				.connect(otherAccount1)
-				.mint(amountMint, { value: price.mul(amountMint) })
-			expect(await testERC20.totalSupply()).to.equal(amountMint)
+			const mintCount = 3
+			const supplyBefore = await testERC20.totalSupply()
+			for (let i = 0; i < mintCount; i++) {
+				await testERC20
+					.connect(otherAccount1)
+					.mint(amountMint, { value: price.mul(amountMint) })
+			}
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore.add(amountMint * mintCount))
 		})
 		it("Should emit transfer event with right args", async function () {
 			const { testERC20, otherAccount1, price } = await loadFixture(deployContractFixture)
@@ -646,6 +649,7 @@ describe("ERC20", function () {
 				deployContractTokensApprovedFixture
 			)
 
+			const supplyBefore = await testERC20.totalSupply()
 			for (let i = 0; i < accounts.length; i++) {
 				const from = accounts[i]
 				const spender = accounts[(i + 1) % accounts.length]
@@ -654,6 +658,7 @@ describe("ERC20", function () {
 					testERC20.connect(spender).transferFrom(from.address, to.address, approvals[i])
 				).to.changeTokenBalance(testERC20, to.address, approvals[i])
 			}
+			expect(await testERC20.totalSupply()).to.equal(supplyBefore)
 		})
 	})
 })
