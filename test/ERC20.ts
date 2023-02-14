@@ -609,7 +609,7 @@ describe("ERC20", function () {
 				testERC20
 					.connect(otherAccount2)
 					.transferFrom(ethers.constants.AddressZero, otherAccount3.address, 0)
-			).to.be.revertedWith("ERC20: transfer from the zero address")
+			).to.be.revertedWith("ERC20: spend from the zero address")
 		})
 		it("Should revert if allowance is not enough", async function () {
 			const { testERC20, otherAccount1, otherAccount2, otherAccount3, amountApprove1 } =
@@ -641,6 +641,19 @@ describe("ERC20", function () {
 					.transferFrom(otherAccount1.address, otherAccount3.address, amountMint + 1)
 			).to.be.revertedWith("ERC20: transfer amount exceeds balance")
 		})
-		it("Make tests for several transfers for different addresses in one unit test", async function () {})
+		it("Make tests for several transfers for different addresses in one unit test", async function () {
+			const { testERC20, accounts, approvals } = await loadFixture(
+				deployContractTokensApprovedFixture
+			)
+
+			for (let i = 0; i < accounts.length; i++) {
+				const from = accounts[i]
+				const spender = accounts[(i + 1) % accounts.length]
+				const to = accounts[(i + 2) % accounts.length]
+				await expect(
+					testERC20.connect(spender).transferFrom(from.address, to.address, approvals[i])
+				).to.changeTokenBalance(testERC20, to.address, approvals[i])
+			}
+		})
 	})
 })
